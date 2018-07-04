@@ -1,69 +1,44 @@
-环境配置: Anaconda 4.4.10, python 3.6.4
+环境配置：
 
+    Anaconda 4.4.10, python 3.6.4
 
-依赖库： pandas 0.22.0, numpy 1.14.2, scikit-learn 0.19.1, lightgbm 2.2.1, tensorflow 1.8.0
+主要依赖库：
 
+    pandas 0.22.0, numpy 1.14.2, scikit-learn 0.19.1, lightgbm 2.2.1
 
-步骤说明： 先后完成预处理、特征工程、lgb模型训练、lgb模型融合、nffm模型训练、lgb和nffm预测结果进行融合
+步骤说明：
 
+    按文件名顺序依次运行代码，先后完成预处理、特征工程、模型训练、测试集预测与模型结果融合
+    
+预处理：
+    
+    预处理有个特别的地方就是对merge完的训练集进行了分块，后续利用这个分块进行转化率特征的提取以及统一利用其中一个分块数据作为验证集。
+    
+特征提取：
 
-特征的使用与生成情况： 除原始特征稀疏矩阵与组合ID稀疏矩阵外，还采用了分块转化率、点击量、点击比例偏好、兴趣类特征长度、兴趣类特征组合转化率共五组统计特征，构造过程分别用cvr、click、ratio、length、CV_cvr表示。其中cvr统计方法为将训练集分成五份，其中一份作为验证集不加入统计计算，其余四份交叉统计。而CV_cvr则是利用ct\marriageStatus\interest字段编码生成稀疏矩阵，通过lightgbm模型的特征重要性排序提取前二十维转化为onehot编码，与其余字段进行组合转化率统计，统计方法同cvr。
+    五大类特征，投放量（click）、投放比例（ratio）、转化率（cvr）、特殊转化率（CV_cvr）、多值长度（length），每类特征基本都做了一维字段和二维组合字
+    段的统计。值得注意的是转化率利用预处理所得的分块标签独立出一个分块验证集不加入统计，其余分块做dropout交叉统计，测试集则用全部训练集数据进行统
+    计。此外，我们发现一些多值字段的重要性很高，所以利用了lightgbm特征重要性对ct\marriage\interest字段的稀疏编码矩阵进行了提取，提取出排名前20的编
+    码特征与其他单值特征进行类似上述cvr的统计生成CV_cvr的统计，这组特征和cvr的效果几乎相当。
+    
+ 特征筛选：
+ 
+    内存原因，没办法一次性加载所有特征，故对每组特征进行组内筛选，对组内特征进行重要性排序，排序完筛选办法有两种，一种是按照排名进行前向搜索，另一种
+    就是直接测试前n*5(n位正整数)个特征的效果，由于多数统计特征之间相关性很高，大概每组30+个特征的信息就能代表整组特征所包含的信息。第一种精度会好一
+    些单速度慢，第二种办法就相对快很多。
 
+模型融合：
+    
+    由于数据量过大，lgb根据分块数据与分组特征跑了很多个子模型，最后根据验证集的多组预测值进行auc排序后，依次百分比（list(range(0,101))*0.01）遍历
+    加权以获得最佳权值，再将同样的权值应用到测试集的预测结果上，这样每多加权一个子模型，验证集的auc只会大于等于加权这个子模型之前的auc。整个加权过程
+    其实就类似于是一种线性拟合，也可以利用各个子模型的验证集和测试集的预测结果作为特征，利用验证集的标签作为真实标签，采用xgboost等模型进行训练，这
+    样效果与之前的遍历加权差不多。
+    
+体会不足：
 
-模型结构：
-使用了lightgbm和nffm
-lgb方面，由于数据量的原因，复赛均提取20%的训练集数据来训练lgb模型，通过不同的特征组合构造多个lgb模型进行融合。
-nffm方面，模型结构主要是复赛数全量据构造的nffm，初赛和复赛全量数据构造的nffm两种，两种nffm所使用的特征也是不用的。同时为了模型的鲁棒性，每种nffm通过不同的数据分布各训练出三个模型。
-融合结构，一个融合后的lgb模型结合六个nffm模型进行加权融合。
-(
-  ( 
-    (
-      result['nffm_75866_1']*0.5 + result['nffm_75866_2']*0.5
-    ) 
-    *0.5 + result['nffm_75866_0']*0.5
-  ) 
-  *0.2 + result['nffm_7688']*0.4 + (result['nffm_763']*0.4 + result['nffm_765']*0.6)*0.4 
-) 
-*0.7 + result['lgb']*0.3
+    模型方面参数没有做优化，20%的验证集相对来说选得比较大，初赛数据加得比较晚导致之前筛选出的特征不是加了初赛数据之后得训练集的最优特征。
+    
+致谢：
 
-模型参数： 
--------lightgbm:
-----lgb参数一:
-LGBMClassifier(boosting_type='gbdt', num_leaves=40, max_depth=-1, learning_rate=0.1, n_estimators=10000, subsample_for_bin=200000, objective=None, class_weight=None, min_split_gain=0.0, min_child_weight=0.001, min_child_samples=20, subsample=0.7, subsample_freq=1, colsample_bytree=0.7, reg_alpha=6, reg_lambda=3, random_state=2018, n_jobs=-1, silent=True) LGBMClassifier(boosting_type='gbdt', class_weight=None, colsample_bytree=0.7, learning_rate=0.1, max_depth=-1, min_child_samples=20, min_child_weight=0.001, min_split_gain=0.0, n_estimators=10000, n_jobs=-1, num_leaves=110, objective=None, random_state=2018, reg_alpha=2, reg_lambda=3, silent=True, subsample=0.7, subsample_for_bin=200000, subsample_freq=1)
-----lgb参数二:
-LGBMClassifier(boosting_type='gbdt', class_weight=None, colsample_bytree=0.8,
-    learning_rate=0.1, max_depth=-1, min_child_samples=20,
-    min_child_weight=0.001, min_split_gain=0.0, n_estimators=10000,
-    n_jobs=-1, num_leaves=110, objective=None, random_state=None,
-    reg_alpha=10, reg_lambda=0.0, silent=True, subsample=1.0,
-    subsample_for_bin=200000, subsample_freq=1)
-
--------nffm:
-----nffm参数一:
-仅使用复赛数据，跑完所有epoch，对idx分别设置0，1，2，跑三个复赛数据的nffm
-k=8,
-batch_size=4096,
-optimizer="adam",
-learning_rate=0.0002,
-num_display_steps=100,
-num_eval_steps=1000,
-l2=0.000002,
-hidden_size=[128,128],
-evl_batch_size=5000,
-all_process=3,
-idx=0,
-epoch=int(44628906//4096),
-----nffm参数二：
-使用初赛加复赛数据，由于时间原因，未能跑完全部epoch，故对epoch分别设置8000，8000，10000，idx分别设置0，1，2，跑三个初赛加复赛数据的nffm
-k=8,
-batch_size=4096,
-optimizer="adam",
-learning_rate=0.0002,
-num_display_steps=100,
-num_eval_steps=2000,
-l2=0.000002,
-hidden_size=[128,128],
-evl_batch_size=5000,
-all_process=3,
-idx=0, # 0，1，2
-epoch=8000, # 8000，8000，10000 
+    本次参赛特别感谢byran的baseline，让我们学会了使用稀疏矩阵。另外，也特别感谢郭大开源的nffm，没有nffm，单靠lgb我们最后只能达到0.763+的成绩。最
+    后，感谢两位队友（鱼遇雨欲语与余、全靠队友带）的共同努力，儿须成名酒须醉。
