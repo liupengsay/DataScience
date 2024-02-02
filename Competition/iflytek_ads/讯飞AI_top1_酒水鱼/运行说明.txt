@@ -1,0 +1,50 @@
+一、data文件夹:       存放比赛原始数据和预处理后用户特征数据
+		src/data/round2_iflyad_train.txt 
+		src/data/round1_iflyad_train.txt
+		src/data/round2_iflyad_test_feature.txt
+		src/data/round1_iflyad_test_feature.txt
+                                src/data/ratio_feat.csv  # lightgbm返回特征重要性的ratio比例特征
+		
+
+二、result文件夹:    存放结果文件 
+                                src/result/liupeng_result.csv
+		src/result/wengyp_result.csv
+                                src/result/wanghe_result.csv
+
+三、三套代码不同特征，不同参数，final_ronghe将三个结果进行加权平均
+      liupeng_demo.py
+      wengyp_demo.py
+      wanghe_demo.py
+      final_ronghe.py
+四、主要运行环境：
+                   liupeng_demo.py：
+		anaconda： 5.2.0
+		python： 3.6.5
+		pandas： 0.23.0
+		scikit-learn： 0.19.1
+		lightgm： 2.2.0
+		numpy： 1.14.3
+		scipy： 1.1.0
+                   wengyp_demo.py：
+		anaconda： 5.2.0
+		python： 2.7.13
+		pandas： 0.20.1
+		scikit-learn： 0.19.1
+		lightgm： 2.0.10
+		numpy： 1.14.2
+		scipy： 1.0.0
+                   wanghe_demo.py:
+		anaconda： 5.2.0
+		python： 3.6.4
+		pandas： 0.22.0
+		scikit-learn： 0.19.1
+		lightgm： 2.0.10
+		numpy： 1.14.0
+		scipy 1.0.0
+四、用户特征预处理开关：
+当water_demo.py中 PROCESSED_FILE 设置为False时，对user_tags进行处理，保留在训练集中出现次数排在较前的tags（目前选取前399个），
+处理后的新训练集和测试文件保存在 data/processed_train_fusai2.csv 和 ./processed_test_fusai2.csv
+如果进行过预处理并保存了文件，则PROCESSED_FILE设置为True,可以大大提高速度，预处理操作只需要进行一次,后续可直接使用处理过的文件。
+
+五、运行方式
+   run.sh
